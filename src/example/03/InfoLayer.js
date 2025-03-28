@@ -115,8 +115,7 @@ const map = new Map({
   layers: [
     new TileLayer({
       source: new OSM()
-    }),
-    markerLayer
+    })  
   ],
   view: new View({
     center: fromLonLat([126.9779, 37.5665]),
@@ -136,7 +135,40 @@ const map = new Map({
   ]
 });
 
+function toggleLayer(layer, button) {
+  button.textContent = visible ? 'ON' : 'OFF';
+  button.classList.toggle('active', visible);
+  
+  const visible = !layer.getVisible();
+  layer.setVisible(visible);
 
+  map.render();
+}
+
+function moveLayer(layer, direction) {
+  const layers = map.getLayers().getArray();
+  const currentZIndex = layer.getZIndex();
+  
+  if (direction === 'up' && currentZIndex < 3) {
+    const targetLayer = layers.find(l => l.getZIndex() === currentZIndex + 1);
+    if (targetLayer) {
+      targetLayer.setZIndex(currentZIndex);
+      layer.setZIndex(currentZIndex + 1);
+    }
+  } else if (direction === 'down' && currentZIndex > 1) {
+    const targetLayer = layers.find(l => l.getZIndex() === currentZIndex - 1);
+    if (targetLayer) {
+      targetLayer.setZIndex(currentZIndex);
+      layer.setZIndex(currentZIndex - 1);
+    }
+  }
+  map.render();
+}
+
+function deleteLayer(layer, itemId) {
+  map.removeLayer(layer);
+  document.getElementById(itemId).remove();
+}
 
 const layerSetup = [
   { id: 'osm', layer: osmLayer, itemId: 'osm-item' },
@@ -148,11 +180,129 @@ osmLayer.setZIndex(1);
 wmsLayer.setZIndex(2);
 vectorLayer.setZIndex(3);
 
+layerSetup.forEach(({ id, layer, itemId }) => {
+  const toggleBtn = document.getElementById(`toggle-${id}`);
+  const upBtn = document.getElementById(`up-${id}`);
+  const downBtn = document.getElementById(`down-${id}`);
+  const deleteBtn = document.getElementById(`delete-${id}`);
+
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => toggleLayer(layer, toggleBtn));
+  }
+  
+  if (upBtn) {
+    upBtn.addEventListener('click', () => moveLayer(layer, 'up'));
+  }
+  
+  if (downBtn) {
+    downBtn.addEventListener('click', () => moveLayer(layer, 'down'));
+  }
+  
+  if (deleteBtn) {
+    deleteBtn.addEventListener('click', () => deleteLayer(layer, itemId));
+  }
+
+  if (toggleBtn && layer.getVisible()) {
+    toggleBtn.textContent = 'ON';
+    toggleBtn.classList.add('active');
+  } else if (toggleBtn) {
+    toggleBtn.textContent = 'OFF';
+    toggleBtn.classList.remove('active');
+  }
+});
+
+function getWMSFeatureInfo(evt) {
+  const viewResolution = map.getView().getResolution();
+  const url = wmsLayer.getSource().getFeatureInfoUrl(
+    evt.coordinate,
+    viewResolution,
+    'EPSG:3857',
+    {
+      'INFO_FORMAT': 'application/json',
+      'FEATURE_COUNT': 1
+    }
+  );
+
+  if (url) {
+    fetch(url)
+      .then(response => response.json())
+      .then(data => {
+        displayFeatureInfo(data.features[0], evt.coordinate);
+      })
+      .catch(() => {
+        displayFeatureInfo(null, evt.coordinate);
+      });
+  }
+}
+
+function getVectorFeatureInfo(evt) {
+  const feature = map.forEachFeatureAtPixel(evt.pixel, function(feature) {
+    return feature;
+  });
+
+  if (feature) {
+    displayFeatureInfo(feature, evt.coordinate);
+  }
+}
+
+function displayFeatureInfo(feature, coordinate) {
+  const infoContent = document.getElementById('info-content');
+  const hdms = toStringHDMS(transform(coordinate, 'EPSG:3857', 'EPSG:4326'));
+  
+  let content = `<p>클릭 좌표: ${hdms}</p>`;
+
+  if (feature) {
+    if (feature.getProperties) {  // Vector Feature
+      const properties = feature.getProperties();
+      content += '<h4>벡터 레이어 정보:</h4>';
+      Object.entries(properties).forEach(([key, value]) => {
+        if (key !== 'geometry') {
+          content += `<p>${key}: ${value}</p>`;
+        }
+      });
+    } else {  // WMS Feature
+      content += '<h4>WMS 레이어 정보:</h4>';
+      Object.entries(feature.properties).forEach(([key, value]) => {
+        content += `<p>${key}: ${value}</p>`;
+      });
+    }
+  }
+
+  infoContent.innerHTML = content;
+}
+
+map.on('singleclick', function(evt) {
+  const infoContent = document.getElementById('info-content');
+  infoContent.innerHTML = '정보를 불러오는 중...';
+
+  if (wmsLayer.getVisible()) {
+    getWMSFeatureInfo(evt);
+  }
+  
+  if (vectorLayer.getVisible()) {
+    getVectorFeatureInfo(evt);
+  }
+});
+
+map.on('pointermove', function(evt) {
+  const pixel = map.getEventPixel(evt.originalEvent);
+  const hit = map.hasFeatureAtPixel(pixel);
+  map.getTargetElement().style.cursor = hit ? 'pointer' : '';
+});
+
 const markerSvg = `
   <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
     <path fill="#e53935" d="M24 4c-7.73 0-14 6.27-14 14 0 10.5 14 26 14 26s14-15.5 14-26c0-7.73-6.27-14-14-14zm0 19c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
   </svg>
 `;
+
+const markerStyle = new Style({
+  image: new Icon({
+    anchor: [0.5, 1],
+    src: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(markerSvg),
+    scale: 0.8
+  })
+});
 
 const markerSource = new VectorSource();
 const markerLayer = new VectorLayer({
@@ -161,3 +311,35 @@ const markerLayer = new VectorLayer({
 });
 
 map.addLayer(markerLayer);
+
+function addMarker(coordinates) {
+  markerSource.clear();
+  const marker = new Feature({
+    geometry: new Point(fromLonLat(coordinates))
+  });
+  markerSource.addFeature(marker);
+}
+
+document.querySelectorAll('.place-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const placeId = parseInt(item.dataset.id);
+    const place = places.find(p => p.id === placeId);
+    
+    if (place) {
+      document.querySelectorAll('.place-item').forEach(el => 
+        el.classList.remove('selected')
+      );
+      
+      item.classList.add('selected');
+
+      map.getView().animate({
+        center: fromLonLat(place.coordinates),
+        zoom: 16,
+        duration: 1000
+      });
+      
+      addMarker(place.coordinates);
+    }
+  });
+});
+

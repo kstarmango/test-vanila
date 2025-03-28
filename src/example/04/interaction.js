@@ -11,10 +11,8 @@ import { getArea, getLength } from 'ol/sphere';
 import { unByKey } from 'ol/Observable';
 import { Polygon } from 'ol/geom';
 
-// 벡터 소스 생성
 const source = new VectorSource();
 
-// 스타일 정의
 const styles = {
   draw: new Style({
     fill: new Fill({
@@ -77,13 +75,11 @@ const styles = {
   }
 };
 
-// 벡터 레이어 생성
 const vector = new VectorLayer({
   source: source,
   style: feature => styles.measure(feature)
 });
 
-// HTML 구조 생성
 document.getElementById('app').innerHTML = `
   <div class="main-container">
     <div class="sidebar">
@@ -99,7 +95,6 @@ document.getElementById('app').innerHTML = `
   </div>
 `;
 
-// 지도 생성
 const map = new Map({
   target: 'map',
   layers: [
@@ -114,14 +109,12 @@ const map = new Map({
   })
 });
 
-// 현재 활성화된 상호작용들을 저장
 let draw;
 let modify;
 let snap;
 let listener;
 let currentType = 'LineString';
 
-// 모든 상호작용 제거 함수
 function clearInteractions() {
   if (draw) {
     map.removeInteraction(draw);
@@ -213,5 +206,4 @@ document.getElementById('polygon').addEventListener('click', () => {
 
 document.getElementById('clear').addEventListener('click', clearAll);
 
-// 초기 상호작용 추가
 addInteraction();

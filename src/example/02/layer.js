@@ -105,14 +105,40 @@ const map = new Map({
   })
 });
 
-// 실습 1
-function toggleLayer(layer, button) {}
+function toggleLayer(layer, button) {
+  button.textContent = visible ? 'ON' : 'OFF';
+  button.classList.toggle('active', visible);
+  // 레이어 토글 처리 
+  const visible = !layer.getVisible();
+  layer.setVisible(visible);
 
-// 실습 2
-function moveLayer(layer, direction) {}
+  map.render();
+}
 
-// 실습 3
-function deleteLayer(layer, itemId) {}
+function moveLayer(layer, direction) {
+  const layers = map.getLayers().getArray();
+  const currentZIndex = layer.getZIndex();
+  
+  if (direction === 'up' && currentZIndex < 3) {
+    const targetLayer = layers.find(l => l.getZIndex() === currentZIndex + 1);
+    if (targetLayer) {
+      targetLayer.setZIndex(currentZIndex);
+      layer.setZIndex(currentZIndex + 1);
+    }
+  } else if (direction === 'down' && currentZIndex > 1) {
+    const targetLayer = layers.find(l => l.getZIndex() === currentZIndex - 1);
+    if (targetLayer) {
+      targetLayer.setZIndex(currentZIndex);
+      layer.setZIndex(currentZIndex - 1);
+    }
+  }
+  map.render();
+}
+
+function deleteLayer(layer, itemId) {
+  map.removeLayer(layer);
+  document.getElementById(itemId).remove();
+}
 
 const layerSetup = [
   { id: 'osm', layer: osmLayer, itemId: 'osm-item' },
