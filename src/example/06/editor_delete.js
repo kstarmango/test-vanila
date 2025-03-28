@@ -1,5 +1,7 @@
 // OprenLayers 기본 스타일
 import 'ol/ol.css';
+import '../../style.css';
+import './style.css';
 
 // jQuery
 import $ from "jquery";
@@ -91,6 +93,19 @@ proj4.defs([
 ]);
 
 register(proj4);
+
+document.querySelector('#app').innerHTML = `
+  <div class="main-container">
+    <div id="map"></div>
+    <div class="sidebar">
+      <div id="toolbox">
+        <button type="button" class="btn btn-default" name="btnReset">Reset</button>
+        <button type="button" class="btn btn-success" name="btnDelete">Delete</button>
+      </div>
+    </div>
+  </div>
+`
+
 
 
 // Map Object
@@ -232,6 +247,7 @@ const transactWFS = (tType, features) => {
 };
 
 const reset = () => {
+  console.log('reset');
   features.clear();
   vectorSource.clear();
   WMSSource.updateParams({ '_t': Date.now() });
